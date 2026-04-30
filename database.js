@@ -1,3 +1,4 @@
+import { getAuth } from "firebase/auth";
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, addDoc, getDocs, query, orderBy } from "firebase/firestore";
 
@@ -12,12 +13,19 @@ const firebaseConfig = {
 };
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+export const auth = getAuth(app); 
 
-// Dummy Suspect Database for Matching Logic
+// Upgraded Forensic Database for Mathematical Matching
+// Upgraded 8-Person Forensic Database
 const dummySuspects = [
-  { id: 1, name: "John 'The Ghost' Doe", traits: ["beard", "scar", "glasses"], image: "https://i.pravatar.cc/150?u=1" },
-  { id: 2, name: "Jane 'Red' Smith", traits: ["sharp jaw", "piercing eyes"], image: "https://i.pravatar.cc/150?u=2" },
-  { id: 3, name: "Mike 'Heavy' Miller", traits: ["round face", "bald"], image: "https://i.pravatar.cc/150?u=3" }
+  { id: 1, name: "David 'Shadow' Miller", image: "https://randomuser.me/api/portraits/men/32.jpg", traits: { age: 36, faceShape: 'Diamond', eyeShape: 'Almond', tags: ['Beard', 'Scar'] } },
+  { id: 2, name: "Maria 'Viper' Rostova", image: "https://randomuser.me/api/portraits/women/44.jpg", traits: { age: 28, faceShape: 'Oval', eyeShape: 'Round', tags: ['Glasses'] } },
+  { id: 3, name: "Marcus 'Heavy' Vance", image: "https://randomuser.me/api/portraits/men/68.jpg", traits: { age: 45, faceShape: 'Square', eyeShape: 'Hooded', tags: ['Mustache'] } },
+  { id: 4, name: "Sarah 'Ghost' Jenkins", image: "https://randomuser.me/api/portraits/women/12.jpg", traits: { age: 31, faceShape: 'Diamond', eyeShape: 'Upturned', tags: ['Piercing', 'Tattoo'] } },
+  { id: 5, name: "Tommy 'Two-Tone' Clark", image: "https://randomuser.me/api/portraits/men/90.jpg", traits: { age: 25, faceShape: 'Square', eyeShape: 'Almond', tags: ['Earrings', 'Hoodie'] } },
+  { id: 6, name: "Elena 'Phantom' Cruz", image: "https://randomuser.me/api/portraits/women/68.jpg", traits: { age: 42, faceShape: 'Heart', eyeShape: 'Deep-set', tags: ['Hat', 'Wrinkles'] } },
+  { id: 7, name: "Arthur 'Professor' Pendelton", image: "https://randomuser.me/api/portraits/men/11.jpg", traits: { age: 55, faceShape: 'Oval', eyeShape: 'Round', tags: ['Glasses', 'Beard', 'Wrinkles'] } },
+  { id: 8, name: "Chloe 'Glitch' Sato", image: "https://randomuser.me/api/portraits/women/33.jpg", traits: { age: 22, faceShape: 'Round', eyeShape: 'Monolid', tags: ['Piercing', 'Hoodie', 'Tattoo'] } }
 ];
 
 export const dbService = {

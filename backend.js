@@ -7,7 +7,7 @@ app.use(cors()); // Allows all connections
 app.use(express.json());
 
 // Replace with your Stability API Key
-const STABILITY_API_KEY = "sk-ZZqD3dCaZsswnENFDd5ymjSF5ePjQPKtXi9v0lPfgXTxA68N"; 
+const STABILITY_API_KEY = "sk-CZDAVGxwGUFAqbIe1yjmg3Lc6cjM1eL4Kofy6ESuWlwM778v"; 
 
 app.post('/generate', async (req, res) => {
     console.log("📥 RECEIVED REQUEST:", req.body.prompt); // LOGGING ADDED
