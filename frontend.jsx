@@ -17,16 +17,17 @@ const getTimestamp = () => {
 
 export default function CrimeSketchApp() {
   // Glassmorphism Style Classes
+  const [currentPage, setCurrentPage] = useState('auth');
   const [isListening, setIsListening] = useState(false);
   const [databaseMatches, setDatabaseMatches] = useState([]);
-const [topMatchScore, setTopMatchScore] = useState("0.0");
-const refinementOptions = [
+  const [topMatchScore, setTopMatchScore] = useState("0.0");
+  const refinementOptions = [
   "Beard", "Glasses", "Scar", "Mustache", "Tattoo", 
   "Piercing", "Hoodie", "Hat", "Earrings", "Wrinkles"
-];
+    ];
 
-// This array will hold multiple selections at once!
-const [selectedRefinements, setSelectedRefinements] = useState([]);
+  // This array will hold multiple selections at once!
+  const [selectedRefinements, setSelectedRefinements] = useState([]);
   const glassPanel = "bg-white/5 backdrop-blur-md border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.8)]";
   const neonText = "text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-orange-400 font-black";
   const [description, setDescription] = useState('');
@@ -43,7 +44,7 @@ const [selectedRefinements, setSelectedRefinements] = useState([]);
   faceShape: 'oval', 
   eyeShape: 'almond', // New category
   eyeSize: 5          // Now a numeric scale starting from 0
-});
+  });
   // FIXED: Added the missing sketch state to store the AI generated image
   const [sketch, setSketch] = useState(null);
   // ==========================================
@@ -69,11 +70,13 @@ const [selectedRefinements, setSelectedRefinements] = useState([]);
       if (isLogin) {
         const userCredential = await signInWithEmailAndPassword(auth, formData.email, formData.password);
         setCurrentUser(userCredential.user);
+        setCurrentPage('landing');
         setLogs(prev => [{ timestamp: new Date().toISOString(), action: `Operative ${userCredential.user.email} authenticated.` }, ...prev]);
       } else {
         const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
         await updateProfile(userCredential.user, { displayName: formData.username });
         setCurrentUser(userCredential.user);
+        setCurrentPage('landing');
         setLogs(prev => [{ timestamp: new Date().toISOString(), action: `New clearance granted to ${formData.username}.` }, ...prev]);
       }
     } catch (err) {
@@ -92,9 +95,9 @@ const [selectedRefinements, setSelectedRefinements] = useState([]);
     recognition.onresult = (event) => setDescription(event.results[0][0].transcript);
     recognition.start();
   };
-// This only updates the text box, it DOES NOT call the AI
+  // This only updates the text box, it DOES NOT call the AI
 // This function handles the dropdown selections for the center panel
-const toggleRefinement = (tag) => {
+  const toggleRefinement = (tag) => {
   setSelectedRefinements(prev => {
     // If the tag is already in the array, remove it
     if (prev.includes(tag)) {
@@ -103,6 +106,9 @@ const toggleRefinement = (tag) => {
       // If it is not in the array, add it
       return [...prev, tag];
     }
+    // Forensic logging for refinement tracking
+  const isRemoving = selectedRefinements.includes(tag);
+  addAuditLog(`Biometric marker '${tag}' has been ${isRemoving ? 'terminated' : 'verified and logged'} by Operative Moksha.`);
   });
 
   // Log the action for the Audit Log sidebar
@@ -238,45 +244,90 @@ const runFacialRecognition = () => {
     recognition.start();
   };
 
+  // ==========================================
+  // 🔄 REFINEMENT ENGINE (AI INTEGRATION)
+  // ==========================================
+// ==========================================
+  // 🔄 REFINEMENT ENGINE (AI INTEGRATION)
+  // ==========================================
+ // ==========================================
+  // 🔄 ADVANCED REFINEMENT ENGINE (ORTHOGRAPHIC)
+  // ==========================================
+  const runRefinement = async () => {
+    if (!sketch) return;
+
+    const refinementPrompt = `Refine the existing singular forensic portrait to include new verified details.
+    
+    [BASE DESCRIPTION]: "${description}".
+    [MANDATORY ADDITIONS]: Apply these features naturally to the face: [${selectedRefinements.join(' and ')}].
+    
+    [STRICT NEGATIVE CONSTRAINTS]: 
+    - STAY AS A SINGULAR FRONT-FACING PORTRAIT.
+    - DO NOT add extra faces, DO NOT add side profiles.
+    - DO NOT include text, grids, or sketches in the background.
+    - Maintain high realism and natural skin texture.`;
+
+    setLoading(true);
+    addAuditLog(`Refining portrait with: ${selectedRefinements.join(', ')}.`);
+
+    try {
+      const response = await axios.post('http://127.0.0.1:5000/generate', {
+        prompt: refinementPrompt,
+        sliders: sliders 
+      });
+
+      if (response.data && response.data.imageUrl) {
+        setSketch(response.data.imageUrl);
+        setHistory(prev => [response.data.imageUrl, ...prev]);
+        runFacialRecognition(); 
+        addAuditLog(`Natural portrait updated.`);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // 2. Generate Image
 const generateSketch = async () => {
-  // Updated prompt to include the Orthographic/Multi-view instructions
-  const forensicPrompt = `A professional forensic sketch character sheet of a suspect, [${description}], ${sliders.age} years old, ${sliders.faceShape} face shape, ${sliders.eyeShape} eyes, orthographic view showing three distinct angles: 1. Frontal portrait, 2. Left side profile, 3. Back of head view. Style: Hand-drawn pencil sketch, realistic shading, charcoal texture, white background, ${selectedRefinements.join(', ')}`;
+    // We move away from 'sketches' to a 'photorealistic forensic portrait'
+    const naturalPrompt = `A singular, highly detailed forensic facial portrait of one individual. 
+    The image should be a natural, front-facing view.
+    
+    [WITNESS DESCRIPTION]: "${description}".
+    [BIOMETRICS]: ${sliders.age} years old, ${sliders.faceShape} face shape, ${sliders.eyeShape} eyes.
+    
+    [STRICT STYLE CONSTRAINTS]: 
+    - ONLY ONE FACE. 
+    - NO side profiles, NO multiple views, NO grids.
+    - Style: Highly realistic pencil and charcoal portrait with skin texture and natural lighting.
+    - Background: Clean, solid off-white background.
+    - NO text, NO labels, NO extra drawings on the page.`;
 
-  setLoading(true);
-  
-  // Initial audit log
-  addAuditLog(`${description}`);
+    setLoading(true);
+    addAuditLog(`Generating singular natural forensic portrait.`);
 
-  try {
-    const response = await axios.post('http://127.0.0.1:5000/generate', { 
-      prompt: forensicPrompt, 
-      sliders: sliders 
-    });
+    try {
+      const response = await axios.post('http://127.0.0.1:5000/generate', { 
+        prompt: naturalPrompt, 
+        sliders: sliders 
+      });
 
-    if (response.data && response.data.imageUrl) {
-      // 1. Update the UI with the new image
-      setSketch(response.data.imageUrl); 
-      setHistory(prev => [response.data.imageUrl, ...prev]); 
-      
-      // 2. RUN THE REAL ALGORITHM (This calculates the match % based on your inputs)
-      const results = runFacialRecognition();
-      
-      // 3. Log the specific accuracy found to the Kernel Audit
-      if (results && results.length > 0) {
-        addAuditLog(`Neural match confirmed: ${results[0].match}% accuracy.`);
-      } else {
-        addAuditLog("Forensic sketch generated. No database matches found.");
+      if (response.data && response.data.imageUrl) {
+        setSketch(response.data.imageUrl); 
+        setHistory(prev => [response.data.imageUrl, ...prev]); 
+        setCurrentPage('results'); 
+        runFacialRecognition();
       }
+    } catch (err) {
+      console.error(err);
+      addAuditLog("Neural link failed.");
+      alert("AI ERROR: Connection failed.");
+    } finally {
+      setLoading(false);
     }
-  } catch (err) {
-    console.error(err);
-    addAuditLog("CRITICAL ERROR: Neural link failed during reconstruction.");
-    alert("Connection Error: Neural Link failed.");
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 // ==========================================
   // 📄 PDF DOSSIER GENERATOR
   // ==========================================
@@ -493,290 +544,263 @@ const generateSketch = async () => {
   // ==========================================
   // 🖥️ MAIN FORENSIC OS APP
   // ==========================================
-  return (
-    <div className="min-h-[100vh] bg-[#02040a] text-slate-200 p-4 font-mono relative overflow-hidden flex flex-col">
-      
-      {/* 1. Deep Sea Ambience Blobs */}
-      <div className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] bg-blue-900/20 blur-[140px] rounded-full animate-pulse" />
-      <div className="absolute bottom-[-10%] right-[20%] w-[40%] h-[40%] bg-indigo-900/15 blur-[120px] rounded-full" />
-      <div className="absolute top-[20%] right-[-5%] w-[30%] h-[30%] bg-cyan-900/10 blur-[100px] rounded-full" />
+ return (
+  <div className="min-h-[100vh] bg-[#02040a] text-slate-200 p-4 font-mono relative overflow-hidden flex flex-col">
+    {/* 1. Shared Background Ambience */}
+    <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.02),rgba(0,255,0,0.01),rgba(0,0,255,0.02))] z-0 pointer-events-none bg-[length:100%_4px,3px_100%]" />
+    <div className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] bg-blue-900/20 blur-[140px] rounded-full animate-pulse" />
+    <div className="absolute bottom-[-10%] right-[20%] w-[40%] h-[40%] bg-indigo-900/15 blur-[120px] rounded-full" />
 
-      <div className="relative z-10 w-full h-full">
-        
-        {/* 2. Glassmorphic Header */}
-        <header className="col-span-12 flex justify-between items-center p-6 rounded-3xl bg-black/40 backdrop-blur-xl border border-blue-500/10 shadow-2xl relative group overflow-hidden">
-          
-          {/* Left Side: Logo and Title */}
-          <div className="flex items-center gap-4 relative z-10">
-            {/* Your New Custom Logo */}
-            <img 
-              src={myLogo} 
-              alt="System Logo" 
-              className="h-10 w-auto drop-shadow-[0_0_10px_rgba(6,182,212,0.5)]" 
-            />
-            <div>
-              <h1 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-orange-500 tracking-widest">
-                CrimeX
-              </h1>
-              <p className="text-[9px] tracking-[0.4em] text-blue-400/50 mt-1 uppercase">
-                Advanced Forensic Identification System
-              </p>
-            </div>
+    {/* PAGE 1: AUTHENTICATION GATEWAY */}
+    {!currentUser ? (
+      <div className="min-h-screen flex items-center justify-center relative z-10 p-4">
+        <div className="relative w-full max-w-md p-8 rounded-3xl bg-black/40 backdrop-blur-xl border border-blue-500/20 shadow-[0_0_50px_rgba(6,182,212,0.1)]">
+          <div className="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 border-cyan-500/50 rounded-tl-3xl" />
+          <div className="absolute top-0 right-0 w-8 h-8 border-t-2 border-r-2 border-cyan-500/50 rounded-tr-3xl" />
+          <div className="absolute bottom-0 left-0 w-8 h-8 border-b-2 border-l-2 border-cyan-500/50 rounded-bl-3xl" />
+          <div className="absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 border-cyan-500/50 rounded-br-3xl" />
+
+          <div className="text-center mb-8">
+            <img src={myLogo} alt="System Logo" className="h-40 w-auto mx-auto mb-4 drop-shadow-[0_0_15px_rgba(6,182,212,0.4)]" />
+            <h1 className="text-xl font-bold text-white tracking-[0.2em] ">Crime<span className="text-cyan-500">X</span></h1>
+            <p className="text-[10px] tracking-[0.3em] text-blue-400/50 mt-2 uppercase">{isLogin ? "AI for Smarter Investigation" : "AI FOR SMARTER INVESTIGATION"}</p>
           </div>
 
-          {/* Right Side: Export Button */}
-         <button 
-          onClick={exportDossier} 
-          className="relative z-10 px-6 py-2 border border-blue-500/30 text-[10px] text-blue-400 font-bold uppercase tracking-widest rounded-lg hover:bg-blue-500/10 transition-all shadow-[0_0_15px_rgba(37,99,235,0.1)] hover:shadow-[0_0_20px_rgba(6,182,212,0.3)] hover:text-cyan-400 hover:border-cyan-500/50"
-        >
-          Export Dossier
-        </button>
+          {errorMsg && (
+            <div className="mb-6 p-3 border border-red-500/50 bg-red-500/10 rounded-lg text-center animate-in fade-in zoom-in duration-300">
+              <p className="text-[10px] text-red-400 font-bold tracking-widest uppercase">{errorMsg}</p>
+            </div>
+          )}
 
-          {/* Decorative Animated Scanline (Optional background effect for the header) */}
-          <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-cyan-500/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 animate-pulse" />
-        </header>
-
-        <div className="grid grid-cols-12 gap-8">
-          
-          {/* 3. Left Panel: Inputs */}
-          <aside className="col-span-3 space-y-6">
-            {/* MISSING DIGITAL INTAKE BOX */}
-            <div className={`p-6 rounded-2xl ${glassPanel}`}>
-              <h2 className="text-xs font-bold text-cyan-500 mb-4 tracking-widest uppercase border-b border-blue-500/10 pb-2">Digital Intake</h2>
-              <textarea 
-                className="w-full bg-black/60 border border-blue-500/10 p-4 rounded-xl h-40 text-sm focus:border-blue-500/50 outline-none transition-all placeholder:text-slate-800 text-cyan-50 custom-scrollbar"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Scanning witness testimony..."
-              />
-              <div className="grid grid-cols-2 gap-3 mt-4">
-                <button 
-                  onClick={toggleListening} 
-                  className={`py-2 rounded-lg border transition-all text-[10px] uppercase flex items-center justify-center gap-2 ${
-                    isListening 
-                      ? "bg-red-500/20 border-red-500 text-red-400 shadow-[0_0_15px_rgba(239,68,68,0.4)] animate-pulse" 
-                      : "bg-blue-900/10 border-blue-500/20 text-blue-300 hover:bg-blue-500/20"
-                  }`}
-                >
-                  {isListening ? (
-                    <> <span className="w-2 h-2 rounded-full bg-red-500 animate-ping"></span> Recording... </>
-                  ) : (
-                    "🎤 Audio"
-                  )}
-                </button>
-                <button onClick={() => generateSketch()} disabled={loading} className="py-2 rounded-lg bg-blue-600 hover:bg-blue-500 font-bold text-[10px] uppercase text-white shadow-[0_0_15px_rgba(37,99,235,0.3)]">
-                  {loading ? "Processing..." : "Generate"}
-                </button>
+          <form onSubmit={handleAuthSubmit} className="space-y-5">
+            {!isLogin && (
+              <div className="animate-in fade-in slide-in-from-top-4 duration-300">
+                <label className="text-[10px] uppercase tracking-widest text-blue-400/70 mb-2 block font-bold">Name</label>
+                <input type="text" name="username" value={formData.username} onChange={handleAuthChange} required={!isLogin} className="w-full bg-[#02040a] border border-blue-500/20 p-3 rounded-xl text-sm text-cyan-50 outline-none focus:border-cyan-500/60 focus:bg-cyan-500/5 transition-all" placeholder="Enter your name" />
               </div>
+            )}
+            <div>
+              <label className="text-[10px] uppercase tracking-widest text-blue-400/70 mb-2 block font-bold">Email</label>
+              <input type="email" name="email" value={formData.email} onChange={handleAuthChange} required className="w-full bg-[#02040a] border border-blue-500/20 p-3 rounded-xl text-sm text-cyan-50 outline-none focus:border-cyan-500/60 focus:bg-cyan-500/5 transition-all" placeholder="operative@mainframe.sys" />
             </div>
-                        <div className={`p-6 rounded-2xl ${glassPanel}`}>
-            <h2 className="text-xs font-bold text-cyan-500 mb-6 tracking-widest uppercase border-b border-blue-500/10 pb-2">Biometric Bias</h2>
-            
-            {/* AGE SLIDER (1 to 100) */}
-            <div className="mb-6">
-                <div className="flex justify-between text-[10px] text-blue-400/60 uppercase mb-2">
-                <span>Age Range</span>
-                <span className="text-cyan-400 font-bold">{sliders.age} YRS</span>
-                </div>
-                <input 
-                type="range" min="1" max="100" value={sliders.age}
-                className="w-full h-1 bg-blue-900/30 rounded-lg appearance-none cursor-pointer accent-cyan-500" 
-                onChange={(e) => setSliders({...sliders, age: e.target.value})} 
-                />
+            <div>
+              <label className="text-[10px] uppercase tracking-widest text-blue-400/70 mb-2 block font-bold">Password</label>
+              <input type="password" name="password" value={formData.password} onChange={handleAuthChange} required className="w-full bg-[#02040a] border border-blue-500/20 p-3 rounded-xl text-sm text-cyan-50 outline-none focus:border-cyan-500/60 focus:bg-cyan-500/5 transition-all" placeholder="••••••••" />
             </div>
+            <button type="submit" disabled={authLoading} className="w-full py-4 mt-4 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:bg-blue-900/50 font-bold text-xs uppercase tracking-widest text-white shadow-[0_0_20px_rgba(37,99,235,0.4)] transition-all">
+              {authLoading ? "Validating Biometrics..." : (isLogin ? "Login" : "Register")}
+            </button>
+          </form>
 
-            {/* FACE SHAPE DROPDOWN */}
-            <div className="mb-6">
-                <label className="text-[10px] text-blue-400/60 uppercase mb-2 block">Face Structure</label>
-                <select 
-                className="w-full bg-black/60 border border-blue-500/10 p-2 rounded text-xs text-cyan-50 outline-none focus:border-cyan-500/50"
-                value={sliders.faceShape}
-                onChange={(e) => setSliders({...sliders, faceShape: e.target.value})}
-                >
-                <option value="oval">Oval</option>
-                <option value="round">Round</option>
-                <option value="square">Squarish</option>
-                <option value="heart">Heart-shaped</option>
-                <option value="diamond">Diamond</option>
-                <option value="long">Oblong/Long</option>
-                </select>
-            </div>
-
-            {/* EYE SHAPE DROPDOWN */}
-            <div className="mb-6">
-                <label className="text-[10px] text-blue-400/60 uppercase mb-2 block">Eye Shape</label>
-                <select 
-                className="w-full bg-black/60 border border-blue-500/10 p-2 rounded text-xs text-cyan-50 outline-none focus:border-cyan-500/50"
-                value={sliders.eyeShape}
-                onChange={(e) => setSliders({...sliders, eyeShape: e.target.value})}
-                >
-                <option value="almond">Almond</option>
-                <option value="hooded">Hooded</option>
-                <option value="monolid">Monolid</option>
-                <option value="downturned">Downturned</option>
-                <option value="upturned">Upturned</option>
-                <option value="round">Round/Wide</option>
-                </select>
-            </div>
-
-            {/* EYE SIZE SLIDER (Starts at 0) */}
-            <div className="mb-6">
-                <div className="flex justify-between text-[10px] text-blue-400/60 uppercase mb-2">
-                <span>Eye Scale</span>
-                <span className="text-cyan-400 font-bold">{sliders.eyeSize}</span>
-                </div>
-                <input 
-                type="range" min="0" max="10" value={sliders.eyeSize}
-                className="w-full h-1 bg-blue-900/30 rounded-lg appearance-none cursor-pointer accent-cyan-500" 
-                onChange={(e) => setSliders({...sliders, eyeSize: e.target.value})} 
-                />
-            </div>
-            </div>
-          </aside>
-
-          {/* 4. Center Panel: Primary Canvas */}
-          <main className="col-span-6">
-            <div className={`p-4 rounded-3xl ${glassPanel} min-h-[520px] flex items-center justify-center relative overflow-hidden group border-blue-500/5`}>
-              {/* UI Scanner Lines */}
-              <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] z-10 pointer-events-none bg-[length:100%_4px,3px_100%]" />
-              
-              {/* Cyberpunk Corner Accents */}
-              <div className="absolute top-6 left-6 w-8 h-8 border-t-2 border-l-2 border-cyan-500/40" />
-              <div className="absolute top-6 right-6 w-8 h-8 border-t-2 border-r-2 border-cyan-500/40" />
-              <div className="absolute bottom-6 left-6 w-8 h-8 border-b-2 border-l-2 border-cyan-500/40" />
-              <div className="absolute bottom-6 right-6 w-8 h-8 border-b-2 border-r-2 border-cyan-500/40" />
-
-              {sketch ? (
-                <div className="relative w-full h-full p-2 animate-in zoom-in-95 duration-700">
-                            <img 
-            src={sketch} 
-            alt="Forensic Sketch"
-            style={{
-              border: '1px solid #00ffff',
-              padding: '5px',
-              background: '#000',
-              filter: 'contrast(1.1) grayscale(1)',
-              maxWidth: '100%'
-            }}
-          />
-                  <div className="absolute bottom-10 left-10 bg-slate-950/80 backdrop-blur-md p-4 rounded-xl border border-blue-500/20 shadow-[0_0_30px_rgba(0,0,0,0.5)]">
-                    <p className="text-[10px] text-cyan-500/50 tracking-[0.5em] mb-1 uppercase font-bold">Neural Match Found</p>
-                    {/* Replace the old hardcoded 94.2% with this: */}
-<p className="text-3xl font-black text-white tracking-tighter">{topMatchScore}% <span className="text-cyan-400">ACCURACY</span></p>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center relative z-20">
-                  <div className="w-24 h-24 border-2 border-blue-900/30 border-t-cyan-500 rounded-full animate-spin mb-6 mx-auto shadow-[0_0_30px_rgba(6,182,212,0.2)]" />
-                  <p className="text-[10px] tracking-[0.6em] text-blue-400/40 animate-pulse uppercase">Syncing with Mainframe...</p>
-                </div>
-              )}
-            </div>
-            
-            {/* NEW UPDATED CODE: */}
-            {/* MULTI-SELECT BUTTON GRID */}
-            <div className="flex flex-wrap gap-3 justify-center mt-8 max-w-4xl mx-auto pb-8">
-              {refinementOptions.map(tag => {
-                // Check if this specific tag is inside our multi-select array
-                const isActive = selectedRefinements.includes(tag);
-                
-                return (
-                  <button 
-                    key={tag} 
-                    onClick={() => toggleRefinement(tag)}
-                    className={`px-6 py-2 text-[10px] rounded-lg border transition-all uppercase tracking-widest ${
-                      isActive 
-                        ? "border-cyan-400 bg-cyan-500/20 text-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.3)]" 
-                        : "border-blue-500/10 bg-blue-500/5 text-blue-400 hover:border-blue-500/40"
-                    }`}
-                  >
-                    {isActive ? `✓ ${tag}` : `+ ${tag}`}
-                  </button>
-                );
-              })}
-            </div>
-          </main>
-
-          {/* 5. Right Panel: Intelligence & Logs */}
-          <aside className="col-span-3 space-y-6">
-            <div className={`p-6 rounded-2xl ${glassPanel} h-[320px] flex flex-col`}>
-              <h2 className="text-xs font-bold text-cyan-500 mb-4 tracking-widest uppercase border-b border-blue-500/10 pb-2">Database Index</h2>
-              {/* Replace getMatches().map(...) with databaseMatches.map(...) */}
-              <div className="flex-1 overflow-y-auto space-y-4 pr-2 scrollbar-thin scrollbar-thumb-blue-900">
-                {databaseMatches.map(s => (
-                  <div key={s.id} className="flex items-center gap-4 p-3 rounded-xl hover:bg-blue-500/5 transition-all group border border-transparent hover:border-blue-500/20">
-                    <div className="relative">
-                      <img src={s.image} className="w-10 h-10 rounded-lg grayscale brightness-75 group-hover:grayscale-0 transition-all" alt="match" />
-                      <div className="absolute inset-0 border border-cyan-500/20 rounded-lg" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-[10px] font-bold uppercase tracking-tight text-slate-300">{s.name}</p>
-                      <div className="w-full h-1 bg-blue-900/20 mt-2 rounded-full overflow-hidden">
-                        {/* Dynamic Progress Bar Width */}
-                        <div className={`h-full shadow-[0_0_10px_rgba(6,182,212,0.5)] ${s.match > 80 ? 'bg-gradient-to-r from-red-600 to-orange-400' : 'bg-gradient-to-r from-blue-600 to-cyan-400'}`} style={{ width: `${s.match}%` }} />
-                      </div>
-                    </div>
-                    {/* Display exact percentage next to the bar */}
-                    <div className="text-[10px] font-mono text-cyan-500 font-bold">{s.match}%</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-                            <div className={`p-6 rounded-2xl ${glassPanel} h-[240px] flex flex-col`}>
-                {/* KERNEL AUDIT PANEL */}
-                                
-                <div className={`p-6 rounded-2xl ${glassPanel} flex flex-col h-[300px]`}>
-                  <h2 className="text-xs font-bold text-cyan-500 mb-4 tracking-widest uppercase border-b border-blue-500/10 pb-2">Kernel Audit</h2>
-                  
-                  <div className="flex-1 overflow-y-auto space-y-4 pr-2 scrollbar-thin scrollbar-thumb-blue-900 scrollbar-track-transparent">
-                    {logs.map((log, index) => {
-                      const isString = typeof log === 'string';
-                      const actionText = isString ? log : log.action;
-                      
-                      const dateObj = isString || !log.timestamp ? new Date() : new Date(log.timestamp);
-                      const timeString = dateObj.toLocaleTimeString('en-US', { hour12: false });
-                      const dateString = dateObj.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
-
-                      const cleanActionText = actionText.startsWith('#') ? actionText.substring(1).trim() : actionText;
-
-                      return (
-                        <div key={index} className="text-[10px] font-mono flex items-start gap-3 group">
-                          
-                          {/* COLUMN 1: Timestamp (Never wraps, never shrinks) */}
-                          <div className="text-blue-500/50 shrink-0 whitespace-nowrap group-hover:text-cyan-500/70 transition-colors mt-[1px]">
-                            [{dateString} {timeString}]
-                          </div>
-                          
-                          {/* COLUMN 2 & 3: The Hash and The Message */}
-                          <div className="flex items-start gap-2 flex-1">
-                            {/* The Hash */}
-                            <div className="text-cyan-500/50 shrink-0 select-none mt-[1px]">#</div>
-                            
-                            {/* The Message (Wraps cleanly under itself) */}
-                            <div className="text-blue-300 group-hover:text-cyan-100 transition-colors flex-1 leading-relaxed">
-                              {cleanActionText}
-                            </div>
-                          </div>
-
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>            
-                <div className="flex-1 overflow-y-auto space-y-3 pr-2 text-[9px] text-blue-400/40 font-mono">
-                {logs.map((log, i) => (
-                  <div key={i} className="flex gap-2 items-start border-l border-blue-500/10 pl-2">
-                    <span className="text-cyan-600 font-black tracking-tighter">#</span>
-                    <span className="text-slate-400">{log.action}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </aside>
-
+          <div className="mt-8 text-center border-t border-blue-500/10 pt-6">
+            <p className="text-[10px] text-slate-500 uppercase tracking-widest">{isLogin ? "Don't have an account?" : "Already have an Account?"}</p>
+            <button type="button" onClick={() => { setIsLogin(!isLogin); setErrorMsg(""); }} className="mt-2 text-[11px] font-bold text-cyan-500 hover:text-cyan-300 tracking-widest uppercase transition-colors">
+              {isLogin ? "Register" : "Back to Login"}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    ) : (
+      /* AUTHORIZED AREA */
+      <div className="relative z-10 w-full h-full">
+        {/* SHARED HEADER */}
+        <header className="col-span-12 flex justify-between items-center p-6 rounded-3xl bg-black/40 backdrop-blur-xl border border-blue-500/10 shadow-2xl relative group overflow-hidden mb-8">
+          <div className="flex items-center gap-4 relative z-10">
+            <img src={myLogo} alt="System Logo" className="h-10 w-auto drop-shadow-[0_0_10px_rgba(6,182,212,0.5)]" />
+            <div>
+              <h1 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-orange-500 tracking-widest">CrimeX</h1>
+              <p className="text-[9px] tracking-[0.4em] text-blue-400/50 mt-1 uppercase">Advanced Forensic Identification System</p>
+            </div>
+          </div>
+          {currentPage !== 'landing' && (
+            <button onClick={() => setCurrentPage('intake')} className="relative z-10 px-4 py-2 border border-blue-500/30 text-[10px] text-blue-400 font-bold uppercase tracking-widest rounded-lg hover:bg-blue-500/10 transition-all">
+              System Hub
+            </button>
+          )}
+        </header>
+
+        {/* NEW PAGE 1.5: LANDING HUB */}
+        {currentPage === 'landing' && (
+          <div className="flex-1 flex items-center justify-center animate-in fade-in zoom-in duration-1000 min-h-[70vh]">
+            <div className="relative w-full max-w-4xl p-16 rounded-[40px] bg-black/40 backdrop-blur-3xl border border-blue-500/20 shadow-[0_0_100px_rgba(6,182,212,0.1)] text-center overflow-hidden">
+              {/* Corner Accents */}
+              <div className="absolute top-0 left-0 w-24 h-24 border-t-2 border-l-2 border-cyan-500/30 rounded-tl-[40px]" />
+              <div className="absolute bottom-0 right-0 w-24 h-24 border-b-2 border-r-2 border-cyan-500/30 rounded-br-[40px]" />
+              
+              <div className="relative z-10">
+                <img src={myLogo} alt="Central Logo" className="h-64 w-auto mx-auto mb-10 drop-shadow-[0_0_30px_rgba(6,182,212,0.4)] animate-pulse" />
+                
+                <h2 className="text-4xl font-black text-white tracking-[0.3em] mb-4 uppercase italic">
+                  Shall we <span className="text-cyan-500 underline decoration-red-500/50 decoration-4 underline-offset-8">solve</span> the case?
+                </h2>
+                
+                <p className="text-blue-400/40 text-[10px] tracking-[0.6em] mb-16 uppercase font-bold">Authorized Investigation Portal // Operative {currentUser?.displayName || 'Moksha'}</p>
+                
+                <button 
+                  onClick={() => setCurrentPage('intake')}
+                  className="group relative px-20 py-10 rounded-2xl bg-blue-600/5 border-2 border-blue-500/30 hover:border-cyan-400 transition-all duration-500 shadow-2xl"
+                >
+                  <span className="text-6xl font-black text-white tracking-[0.2em] group-hover:text-cyan-400 group-hover:scale-105 block transition-all">
+                    NEW CASE
+                  </span>
+                  <div className="absolute inset-0 bg-cyan-500/5 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl" />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* PAGE 2: DIGITAL INTAKE */}
+        {currentPage === 'intake' && (
+          <div className="max-w-2xl mx-auto animate-in fade-in slide-in-from-top-8 duration-700">
+            <div className={`p-8 rounded-3xl ${glassPanel} shadow-2xl`}>
+              <h2 className="text-xs font-bold text-cyan-500 mb-6 tracking-widest uppercase border-b border-blue-500/10 pb-4">Step 01: Witness Testimony Intake</h2>
+              <textarea 
+                className="w-full bg-black/60 border border-blue-500/10 p-6 rounded-2xl h-64 text-base focus:border-cyan-500/50 outline-none transition-all placeholder:text-slate-800 text-cyan-50 custom-scrollbar mb-6"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Awaiting witness description data..."
+              />
+              <div className="grid grid-cols-2 gap-6">
+                <button 
+                  onClick={toggleListening} 
+                  className={`py-4 rounded-xl border transition-all text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-3 ${
+                    isListening ? "bg-red-500/20 border-red-500 text-red-400 animate-pulse" : "bg-blue-900/10 border-blue-500/20 text-blue-300 hover:bg-blue-500/20"
+                  }`}
+                >
+                  {isListening ? "⏹ Stop Listening" : "🎤 Audio Input"}
+                </button>
+                <button onClick={() => generateSketch()} disabled={loading} className="py-4 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-xs uppercase tracking-widest text-white shadow-[0_0_20px_rgba(37,99,235,0.4)]">
+                  {loading ? "Processing..." : "Generate Reconstruction"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* PAGE 3: RECONSTRUCTION MAIN OS (3-COLUMN LAYOUT) */}
+        {currentPage === 'results' && (
+          <div className="grid grid-cols-12 gap-8 animate-in zoom-in-95 duration-700 h-full">
+            
+            {/* 🛡️ 1. LEFT BAR: BIOMETRIC & REFINEMENT INTAKE */}
+            <aside className="col-span-3 space-y-6">
+              <div className={`p-6 rounded-2xl ${glassPanel} border-blue-500/10`}>
+                <h2 className="text-xs font-bold text-cyan-500 mb-6 tracking-widest uppercase border-b border-blue-500/10 pb-2">Biometric Bias</h2>
+                <div className="mb-6">
+                  <div className="flex justify-between text-[10px] text-blue-400/60 uppercase mb-2"><span>Age Range</span><span className="text-cyan-400">{sliders.age} YRS</span></div>
+                  <input type="range" min="1" max="100" value={sliders.age} className="w-full h-1 bg-blue-900/30 rounded-lg appearance-none cursor-pointer accent-cyan-500" onChange={(e) => setSliders({...sliders, age: e.target.value})} />
+                </div>
+                <div className="mb-6"><label className="text-[10px] text-blue-400/60 uppercase mb-2 block">Face Structure</label><select className="w-full bg-black/60 border border-blue-500/10 p-2 rounded text-xs text-cyan-50 outline-none focus:border-cyan-500/50" value={sliders.faceShape} onChange={(e) => setSliders({...sliders, faceShape: e.target.value})}><option value="oval">Oval</option><option value="round">Round</option><option value="square">Squarish</option><option value="heart">Heart-shaped</option><option value="diamond">Diamond</option><option value="long">Oblong/Long</option></select></div>
+                <div className="mb-6"><label className="text-[10px] text-blue-400/60 uppercase mb-2 block">Eye Shape</label><select className="w-full bg-black/60 border border-blue-500/10 p-2 rounded text-xs text-cyan-50 outline-none focus:border-cyan-500/50" value={sliders.eyeShape} onChange={(e) => setSliders({...sliders, eyeShape: e.target.value})}><option value="almond">Almond</option><option value="hooded">Hooded</option><option value="monolid">Monolid</option><option value="downturned">Downturned</option><option value="upturned">Upturned</option><option value="round">Round/Wide</option></select></div>
+              </div>
+              
+              <div className={`p-6 rounded-2xl ${glassPanel} border-cyan-500/10`}>
+                <h2 className="text-xs font-bold text-cyan-500 mb-6 tracking-widest uppercase border-b border-blue-500/10 pb-2">Forensic Refinements</h2>
+                <div className="flex flex-wrap gap-2 justify-center mb-8 pb-4 border-b border-cyan-500/10">
+                  {refinementOptions.map(tag => {
+                    const isActive = selectedRefinements.includes(tag);
+                    return (
+                      <button key={tag} onClick={() => toggleRefinement(tag)} className={`px-4 py-1.5 text-[9px] rounded-lg border transition-all uppercase tracking-tight group flex items-center gap-1 ${isActive ? "border-cyan-400 bg-cyan-500/20 text-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.3)]" : "border-blue-500/10 bg-blue-500/5 text-blue-400 hover:border-blue-500/40"}`}>
+                        {isActive ? `✓ ${tag}` : `+ ${tag}`}
+                        {isActive && <span className="w-1 h-1 rounded-full bg-cyan-400 group-hover:bg-cyan-300"></span>}
+                      </button>
+                    );
+                  })}
+                </div>
+                <button onClick={() => runRefinement()} disabled={loading} className={`w-full py-4 rounded-xl border font-bold text-xs uppercase tracking-widest transition-all relative group overflow-hidden ${loading ? "border-blue-900 bg-black/40 text-blue-600/70" : "border-cyan-500/30 text-cyan-400 hover:border-cyan-500/70 hover:text-cyan-300 hover:shadow-[0_0_20px_rgba(6,182,212,0.4)]"}`}>
+                  {loading ? "Regenerating Neural Link..." : "🔄 Issue Refinement"}
+                  <div className="absolute top-0 left-0 w-full h-[1px] bg-cyan-400 group-hover:animate-pulse" />
+                </button>
+              </div>
+            </aside>
+
+            {/* 🖼️ 2. CENTER BAR: PRIMARY CANVAS */}
+            <main className="col-span-6 relative flex flex-col h-full">
+              <div className={`w-full p-4 rounded-3xl ${glassPanel} h-full min-h-[500px] flex items-center justify-center relative overflow-hidden group`}>
+                <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] z-10 pointer-events-none bg-[length:100%_4px,3px_100%]" />
+                <div className="absolute top-6 left-6 w-8 h-8 border-t-2 border-l-2 border-cyan-500/40" /><div className="absolute top-6 right-6 w-8 h-8 border-t-2 border-r-2 border-cyan-500/40" /><div className="absolute bottom-6 left-6 w-8 h-8 border-b-2 border-l-2 border-cyan-500/40" /><div className="absolute bottom-6 right-6 w-8 h-8 border-b-2 border-r-2 border-cyan-500/40" />
+
+                {sketch ? (
+                  <div className="relative w-full h-full p-2 animate-in zoom-in-95 duration-700">
+                    <img src={sketch} alt="Neural Link Reconstruction" className="rounded-lg border border-cyan-500/30 w-full grayscale contrast-125 shadow-[0_0_30px_rgba(6,182,212,0.1)]" />
+                    <div className="absolute bottom-10 left-10 bg-slate-950/80 backdrop-blur-md p-4 rounded-xl border border-blue-500/20 shadow-[0_0_30px_rgba(0,0,0,0.5)]">
+                      <p className="text-[10px] text-cyan-500/50 tracking-[0.5em] mb-1 uppercase">Neural Match Probability</p>
+                      <p className="text-3xl font-black text-white">{topMatchScore}% <span className="text-cyan-400 text-sm">ACCURACY</span></p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center relative z-20"><div className="w-16 h-16 border-2 border-t-cyan-500 rounded-full animate-spin mx-auto mb-4"/><p className="text-[10px] tracking-[0.4em] text-blue-400/40 animate-pulse">Syncing with Mainframe...</p></div>
+                )}
+              </div>
+            </main>
+
+            {/* 📜 3. RIGHT BAR: CLASSIFIED NAVIGATION */}
+            <aside className="col-span-3 space-y-4">
+              <button onClick={() => exportDossier()} className="w-full py-5 rounded-2xl border border-red-500/30 text-red-400 text-[11px] font-bold uppercase tracking-[0.2em] hover:bg-red-500/10 transition-all flex flex-col items-center gap-1 shadow-[0_0_15px_rgba(239,68,68,0.1)] hover:shadow-[0_0_20px_rgba(239,68,68,0.3)]">
+                <span>01. Export Dossier</span>
+                <span className="text-[9px] text-slate-500 font-mono tracking-tight">CLASS_5N_PDF_DOCKET.sys</span>
+              </button>
+              <button onClick={() => { runFacialRecognition(); setCurrentPage('match'); }} className="w-full py-5 rounded-2xl border border-cyan-500/30 text-cyan-400 text-[11px] font-bold uppercase tracking-[0.2em] hover:bg-cyan-500/10 transition-all flex flex-col items-center gap-1 shadow-[0_0_15px_rgba(6,182,212,0.1)] hover:shadow-[0_0_20px_rgba(6,182,212,0.3)]">
+                <span>02. Dataset Matching</span>
+                <span className="text-[9px] text-slate-500 font-mono tracking-tight">BIOMETRIC_CORRELATION_V1.1</span>
+              </button>
+              <button onClick={() => { setCurrentPage('logs'); }} className="w-full py-5 rounded-2xl border border-blue-500/30 text-blue-400 text-[11px] font-bold uppercase tracking-[0.2em] hover:bg-blue-500/10 transition-all flex flex-col items-center gap-1 shadow-[0_0_15px_rgba(37,99,235,0.1)] hover:shadow-[0_0_20px_rgba(37,99,235,0.3)]">
+                <span>03. Kernel Audit Log</span>
+                <span className="text-[9px] text-slate-500 font-mono tracking-tight">SYSTEM_ACTIVITY_TRACKING.audit</span>
+              </button>
+            </aside>
+          </div>
+        )}
+
+        {/* PAGE 4: DATABASE MATCH TEST */}
+        {currentPage === 'match' && (
+          <div className="max-w-4xl mx-auto animate-in slide-in-from-bottom-12 duration-700">
+            <button onClick={() => setCurrentPage('results')} className="mb-6 text-cyan-500 text-[10px] uppercase hover:text-cyan-300 transition-colors tracking-widest">← Return to Reconstruction</button>
+            <div className={`p-8 rounded-3xl ${glassPanel}`}>
+              <h2 className="text-xl font-bold text-cyan-400 mb-8 tracking-[0.3em] uppercase border-b border-blue-500/20 pb-4">Biometric Database Correlation</h2>
+              <div className="grid grid-cols-1 gap-4 overflow-y-auto max-h-[60vh] pr-4 custom-scrollbar">
+                {databaseMatches.map(s => (
+                  <div key={s.id} className="flex items-center gap-6 p-4 rounded-2xl bg-black/40 border border-blue-500/10 hover:border-cyan-500/30 transition-all">
+                    <img src={s.image} className="w-20 h-20 rounded-xl grayscale group-hover:grayscale-0 transition-all border border-blue-500/20" alt="match" />
+                    <div className="flex-1">
+                      <div className="flex justify-between items-end mb-2">
+                        <p className="text-sm font-bold uppercase tracking-widest text-slate-100">{s.name}</p>
+                        <span className="text-xs font-mono text-cyan-500 font-bold">{s.match}% PROBABILITY</span>
+                      </div>
+                      <div className="w-full h-2 bg-blue-900/20 rounded-full overflow-hidden">
+                        <div className={`h-full ${s.match > 80 ? 'bg-orange-500' : 'bg-cyan-500'}`} style={{ width: `${s.match}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* PAGE 5: KERNEL AUDIT LOGS */}
+        {currentPage === 'logs' && (
+          <div className="max-w-5xl mx-auto animate-in slide-in-from-bottom-12 duration-700">
+            <button onClick={() => setCurrentPage('results')} className="mb-6 text-blue-500 text-[10px] uppercase hover:text-blue-300 transition-colors tracking-widest">← Return to Mainframe</button>
+            <div className={`p-8 rounded-3xl ${glassPanel} h-[75vh] flex flex-col`}>
+              <h2 className="text-xl font-bold text-blue-400 mb-6 tracking-[0.3em] uppercase border-b border-blue-500/20 pb-4">Security Kernel Audit Trail</h2>
+              <div className="flex-1 overflow-y-auto space-y-2 font-mono text-[11px] pr-4 custom-scrollbar">
+                {logs.map((log, index) => {
+                  const dateObj = log.timestamp ? new Date(log.timestamp) : new Date();
+                  return (
+                    <div key={index} className="flex gap-4 p-2 border-b border-blue-900/10 hover:bg-blue-500/5 transition-colors">
+                      <span className="text-blue-500/50">[{dateObj.toLocaleDateString()} {dateObj.toLocaleTimeString('en-GB')}]</span>
+                      <span className="text-cyan-500/50 font-bold">#SYSTEM_EVENT</span>
+                      <span className="text-slate-300">{log.action || log}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    )}
+  </div>
+);
 }
